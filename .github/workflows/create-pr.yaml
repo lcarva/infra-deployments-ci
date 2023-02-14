@@ -1,0 +1,99 @@
+---
+name: create-pr
+
+on:
+  workflow_dispatch:
+  # TODO: schedule
+
+jobs:
+  create-pr:
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Checkout infra-deployments
+      uses: actions/checkout@v3
+      with:
+        # TODO: Use the official ec-cli repo
+        repository: lcarva/infra-deployments
+        ref: main
+        path: infra-deployments
+
+    - name: Checkout ec-cli
+      uses: actions/checkout@v3
+      with:
+        # TODO: Use the official ec-cli repo
+        repository: lcarva/ec-cli
+        ref: batching
+        path: ec-cli
+
+    - name: Update ec-cli
+      # TODO: Remove hard-coded commit after switching to the official ec-cli repo
+      run: ./hack/update-infra-deployments.sh ../infra-deployments
+      working-directory: ec-cli
+
+    - name: Checkout ec-policies
+      uses: actions/checkout@v3
+      with:
+        # TODO: Use the official ec-policies repo
+        repository: lcarva/ec-policies
+        ref: batching
+        path: ec-policies
+
+    - name: Update ec-policies
+      run: ./hack/update-infra-deployments.sh ../infra-deployments
+      working-directory: ec-policies
+
+    - name: Checkout enterprise-contract-controller
+      uses: actions/checkout@v3
+      with:
+        # TODO: Use the official enterprise-contract-controller repo
+        repository: lcarva/enterprise-contract-controller
+        ref: batching
+        path: enterprise-contract-controller
+
+    - name: Update enterprise-contract-controller
+      run: ./hack/update-infra-deployments.sh ../infra-deployments
+      working-directory: enterprise-contract-controller
+
+    - name: Display diff
+      run: git diff
+      working-directory: infra-deployments
+
+    - name: Checkout infra-deployments-ci
+      uses: actions/checkout@v3
+      with:
+        # TODO: Use the official infra-deployments-ci repo
+        repository: lcarva/infra-deployments-ci
+        ref: main
+        path: infra-deployments-ci
+
+    - name: Setup upterm session
+      uses: lhotari/action-upterm@v1
+      with:
+        limit-access-to-actor: true
+
+    - name: Create PR in infra-deployments
+      env:
+        # TODO: What sort of access is needed here?
+        EC_AUTOMATION_KEY: ${{ secrets.EC_AUTOMATION_KEY }}
+        DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+        # APP_INSTALL_ID: 32872589
+        APP_INSTALL_ID: 34218454
+      run: |
+        set -o errexit
+        set -o pipefail
+        set -o nounset
+
+        function createJWT() {
+          local header=$(echo -n '{"alg":"RS256","typ":"JWT"}' | base64 | sed s/\+/-/ | sed -E s/=+$//)
+          local now_utc=$(date --utc +%s)
+          local payload=$(echo -n '{"iat":'$((now_utc - 60))',"exp":'$((now_utc + 120))',"iss":245286}' | base64 | sed s/\+/-/ | sed -E s/=+$//)
+          local signature=$(echo -n "${header}.${payload}" | openssl dgst -sha256 -binary -sign <(echo "${EC_AUTOMATION_KEY}")| base64 | tr -d '\n=' | tr -- '+/' '-_')
+          echo "${header}.${payload}.${signature}"
+        }
+
+        ENSURE_UNIQUE=1 \
+        GITHUB_TOKEN=$(curl -s -X POST -H "Authorization: Bearer $(createJWT)" -H "Accept: application/vnd.github+json" "https://api.github.com/app/installations/${APP_INSTALL_ID}/access_tokens" | jq -r .token) \
+        ./hack/create-pr.sh ../infra-deployments
+      working-directory: infra-deployments-ci
