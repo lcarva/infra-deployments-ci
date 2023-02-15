@@ -68,11 +68,6 @@ jobs:
         ref: main
         path: infra-deployments-ci
 
-    - name: Setup upterm session
-      uses: lhotari/action-upterm@v1
-      with:
-        limit-access-to-actor: true
-
     - name: Create PR in infra-deployments
       env:
         # TODO: What sort of access is needed here?

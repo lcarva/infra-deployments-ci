@@ -22,9 +22,6 @@ set -o errexit
 set -o pipefail
 set -o nounset
 
-# TODO: Remove me
-set -x
-
 GIT_REPO_NAME=infra-deployments
 # TODO: Change these back
 # TODO: Get rid of GIT_ORIGIN?
@@ -58,10 +55,6 @@ git checkout -b ${BRANCH_NAME} --track upstream/main
 
 # commit & push
 git commit -a -m "enterprise contract policy update"
-
-exit
-# TODO: continue here
-
 git push --force -u origin ${BRANCH_NAME}
 
 # create pull request, don't fail if it already exists
